@@ -1,39 +1,63 @@
 """
-Flask API for restaurant sentiment detection model-service.
+Production-ready Flask API with integrated preprocessing and mock model
 """
 
-# import joblib
 from flask import Flask, jsonify, request
 from flasgger import Swagger
 from lib_ml.preprocessor import Preprocessor
 import logging
+import os
+
+# Load environment variables first
 
 app = Flask(__name__)
-swagger = Swagger(app)
 
+# Configure from environment with defaults
+app.config.update({
+    'ENV': os.getenv('FLASK_ENV', 'production'),
+    'DEBUG': os.getenv('FLASK_DEBUG', 'false').lower() == 'true',
+    'HOST': os.getenv('HOST', '0.0.0.0'),
+    'PORT': int(os.getenv('PORT', '8080')),
+    'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '8080')}")
+})
+
+# Configure Swagger
+swagger = Swagger(app, template={
+    'info': {
+        'title': 'Restaurant Sentiment API',
+        'description': 'API for predicting sentiment from restaurant reviews',
+    }
+})
+
+# Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG if app.config['DEBUG'] else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
 class MockModel:
-    """Temporary mock model until real one is ready"""
+    """Mock model that returns deterministic test responses"""
+    def __init__(self):
+        logger.warning("Using MOCK model")
+        self.classes_ = [0, 1]  # Mimic sklearn model structure
+    
     def predict(self, features):
-        # Simple mock logic - replace with real model later
-        return [1 if "good" in str(features).lower() else 0]
+        """Positive if 'good' in text, otherwise negative"""
+        text = str(features)
+        return [1 if "good" in text.lower() else 0]
     
     def predict_proba(self, features):
-        # Mock confidence scores
+        """Mock confidence scores"""
         pred = self.predict(features)[0]
-        return [[1.0, 0.0]] if pred == 0 else [[0.0, 1.0]]
+        return [[0.9, 0.1]] if pred == 0 else [[0.1, 0.9]]
 
 class SentimentService:
     def __init__(self):
-        """Initialize with mock components"""
+        """Initialize with real preprocessor and mock model"""
         self.model = MockModel()
         self.preprocessor = Preprocessor(vectorizer_path=None)
-        logger.info("Initialized with mock services")
+        logger.info("Initialized with mock model and real preprocessor")
 
 # Initialize service
 service = SentimentService()
@@ -43,7 +67,9 @@ def health_check():
     """Service health endpoint"""
     return jsonify({
         "status": "healthy",
-        "service": "restaurant-sentiment-mock",
+        "service": "restaurant-sentiment",
+        "environment": app.config['ENV'],
+        "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
         "warning": "Using mock model implementation"
     })
 
@@ -65,36 +91,55 @@ def predict():
             properties:
                 review:
                     type: string
-                    example: "The food was delicious!".
+                    example: "The food was delicious!"
     responses:
         200:
-            description: "The result of the classification: 'positive' or 'negative'."
+            description: "The result of the classification"
+            schema:
+                type: object
+                properties:
+                    sentiment:
+                        type: string
+                    confidence:
+                        type: number
+                    processed_review:
+                        type: string
+                    endpoint:
+                        type: string
+                    warning:
+                        type: string
+        400:
+            description: "Invalid input"
     """
-    input_data = request.get_json()
-    review = input_data.get('review')
+    try:
+        input_data = request.get_json()
+        if not input_data or 'review' not in input_data:
+            return jsonify({"error": "Missing 'review' in request body"}), 400
 
-    processed_review = service.preprocessor.preprocess(review)
+        review = input_data['review']
+        processed_review = service.preprocessor.preprocess(review)
+        
+        # Mock feature transformation and prediction
+        features = [[0]]  # Using placeholder features since we're mocking
+        prediction = service.model.predict(features)[0]
+        confidence = service.model.predict_proba(features)[0][1]
 
-    # Mock prediction (to be replaced)
-    features = [[0]]  # Temporary mock features
-    prediction = service.model.predict(features)[0]
-    confidence = service.model.predict_proba(features)[0][1]
+        return jsonify({
+            "sentiment": "positive" if prediction == 1 else "negative",
+            "confidence": float(confidence),
+            "processed_review": processed_review,
+            "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
+            "warning": "mock-response"
+        })
 
-    res = {
-        "sentiment": "positive" if prediction == 1 else "negative",
-        "confidence": float(confidence),
-        "processed_review": processed_review,
-        "result": prediction,
-        "classifier": "decision tree",
-        "review": review
-    }
-    print(res)
-    return jsonify(res)
+    except Exception as e:
+        logger.error(f"Prediction failed: {str(e)}")
+        return jsonify({"error": "Prediction service unavailable"}), 500
 
 @app.route('/dumbpredict', methods=['POST'])
 def dumbpredict():
     """
-    Predict restaurant review sentiment.
+    Simple mock prediction endpoint for testing
     ---
     consumes:
         - application/json
@@ -109,21 +154,36 @@ def dumbpredict():
             properties:
                 review:
                     type: string
-                    example: "The food was delicious!".
+                    example: "The food was delicious!"
     responses:
         200:
-            description: "The result of the classification: 'positive' or 'negative'."
+            description: "Simple mock response"
+            schema:
+                type: object
+                properties:
+                    result:
+                        type: string
+                    classifier:
+                        type: string
+                    review:
+                        type: string
+                    note:
+                        type: string
     """
     input_data = request.get_json()
-    review = input_data.get('review')
+    review = input_data.get('review', "") if input_data else ""
 
-    res = {
+    return jsonify({
         "result": "Positive",
         "classifier": "decision tree",
-        "review": review
-    }
-    print(res)
-    return jsonify(res)
+        "review": review[:500],  # Truncate for safety
+        "note": "Simple mock response from dumbpredict endpoint"
+    })
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    logger.info(f"Starting service in {app.config['ENV']} mode on {app.config['HOST']}:{app.config['PORT']}")
+    app.run(
+        host=app.config['HOST'],
+        port=app.config['PORT'],
+        debug=app.config['DEBUG']
+    )
