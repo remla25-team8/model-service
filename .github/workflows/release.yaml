@@ -1,0 +1,32 @@
+name: Release Model Service
+
+on:
+  push:
+    tags: ['v*']  # Trigger on version tags
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      # Login to GitHub Container Registry
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Build and push
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/model-service:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/model-service:latest
+          build-args: |
+            MODEL_URL=${{ secrets.MODEL_URL }}
+            VECTORIZER_URL=${{ secrets.VECTORIZER_URL }}
