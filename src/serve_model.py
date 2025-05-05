@@ -1,5 +1,5 @@
 """
-Production-ready Flask API with integrated preprocessing and mock model
+Production-ready Flask API with integrated preprocessing and hugging face model
 """
 
 from flask import Flask, jsonify, request
@@ -7,12 +7,9 @@ from flasgger import Swagger
 from lib_ml.preprocessor import Preprocessor
 import logging
 import os
-
 import json
 import joblib
 from huggingface_hub import hf_hub_download
-
-# Load environment variables first
 
 app = Flask(__name__)
 
@@ -39,23 +36,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-class MockModel:
-    """Mock model that returns deterministic test responses"""
-    def __init__(self):
-        logger.warning("Using MOCK model")
-        self.classes_ = [0, 1]  # Mimic sklearn model structure
-    
-    def predict(self, features):
-        """Positive if 'good' in text, otherwise negative"""
-        text = str(features)
-        return [1 if "good" in text.lower() else 0]
-    
-    def predict_proba(self, features):
-        """Mock confidence scores"""
-        pred = self.predict(features)[0]
-        return [[0.9, 0.1]] if pred == 0 else [[0.1, 0.9]]
-
     
 class HFModel:
     def __init__(self, version="1"):
@@ -96,8 +76,7 @@ class HFModel:
 
 class SentimentService:
     def __init__(self):
-        """Initialize with real preprocessor and mock model"""
-        # self.model = MockModel()
+        """Initialize with real preprocessor and hugging face model"""
         self.model = HFModel()
         self.preprocessor = Preprocessor(vectorizer_path='/app/c1_BoW_Sentiment_Model.pkl')
         logger.info("Initialized with HF model and lib-ml preprocessor")
@@ -112,9 +91,8 @@ def health_check():
         "status": "healthy",
         "service": "restaurant-sentiment",
         "environment": app.config['ENV'],
-        "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
-        "warning": "Using mock model implementation"
-    })
+        "endpoint": app.config['MODEL_SERVICE_ENDPOINT']
+      })
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -161,15 +139,11 @@ def predict():
 
         review = input_data['review']
         logger.info(f"Received review: {review}")
+        
         processed_review = service.preprocessor.preprocess(review)
         logger.info(f"Processed review: {processed_review}")
-        
-        # Mock feature transformation and prediction
-        # features = [[0]]  # Using placeholder features since we're mocking
-        # features = service.preprocessor.vectorize_single(processed_review)
-        # features = service.preprocessor.vectorize([processed_review])
+
         features = service.preprocessor.vectorize_single(processed_review)
-        # features = ['good food']
         logger.info(f"Vectorized features: {features}")
 
         prediction = service.model.predict(features)[0]
@@ -180,8 +154,7 @@ def predict():
             "sentiment": "positive" if prediction == 1 else "negative",
             "confidence": float(confidence),
             "processed_review": processed_review,
-            "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
-            "warning": "mock-response"
+            "endpoint": app.config['MODEL_SERVICE_ENDPOINT']
         })
 
     except Exception as e:
