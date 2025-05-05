@@ -45,8 +45,11 @@ RUN wget ${MODEL_URL:-https://storage.example.com/models/v1.0/model.joblib} -O $
 wget ${VECTORIZER_URL:-https://storage.example.com/models/v1.0/vectorizer.joblib} -O ${VECTORIZER_PATH} || \
 (echo "Warning: Failed to download model files" && touch ${MODEL_PATH} ${VECTORIZER_PATH})
 
+COPY c1_BoW_Sentiment_Model.pkl /app/c1_BoW_Sentiment_Model.pkl
+
 EXPOSE ${PORT}
 # CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 4 serve_model:app"]
+CMD ["python", "serve_model.py"]
 
 ARG VERSION=latest
 LABEL org.opencontainers.image.version=$VERSION

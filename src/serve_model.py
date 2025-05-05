@@ -99,10 +99,8 @@ class SentimentService:
         """Initialize with real preprocessor and mock model"""
         # self.model = MockModel()
         self.model = HFModel()
-        self.preprocessor = Preprocessor(vectorizer_path=None)
-        self.preprocessor.load_vectorizer("/home/gxy/Desktop/AI_REMLA/team8/model-service/c1_BoW_Sentiment_Model.pkl")
-
-        logger.info("Initialized with mock model and real preprocessor")
+        self.preprocessor = Preprocessor(vectorizer_path='/app/c1_BoW_Sentiment_Model.pkl')
+        logger.info("Initialized with HF model and lib-ml preprocessor")
 
 # Initialize service
 service = SentimentService()
@@ -239,6 +237,5 @@ if __name__ == '__main__':
     app.run(
         host=app.config['HOST'],
         port=app.config['PORT'],
-        # debug=app.config['DEBUG']
-        debug=True
+        debug=app.config['DEBUG']
     )
