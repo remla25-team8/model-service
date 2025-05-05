@@ -40,11 +40,6 @@ jobs:
             APP_VERSION=${{ steps.version.outputs.version }}
             build-args: |
             VERSION=${{ github.ref_name }}
-
-      - name: Create non-Docker asset (example)
-        run: |
-          echo "Example asset for release ${{ steps.version.outputs.version }}" > asset.txt
-          tar -czf release-asset-${{ steps.version.outputs.version }}.tar.gz asset.txt
     
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -57,15 +52,12 @@ jobs:
             # Release ${{ github.ref_name }}
 
             ## Docker Images
+
             - `ghcr.io/${{ github.repository_owner }}/app:${{ steps.version.outputs.version }}`
             - `ghcr.io/${{ github.repository_owner }}/app:latest`
 
             ## Usage
+            
             ```bash
             docker pull ghcr.io/${{ github.repository_owner }}/app:${{ steps.version.outputs.version }}
             ```
-
-            ## Assets
-            - `release-asset-${{ steps.version.outputs.version }}.tar.gz`
-          files: |
-            release-asset-${{ steps.version.outputs.version }}.tar.gz
