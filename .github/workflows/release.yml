@@ -57,11 +57,11 @@ jobs:
           body: |
             ## Docker Images
 
-            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/app:${{ steps.version.outputs.version }}`
-            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/app:latest`
+            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.version }}`
+            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:latest`
 
             ## Usage
 
             ```bash
-            docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/app:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.version }}
             ```
