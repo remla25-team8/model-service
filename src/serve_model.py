@@ -8,6 +8,10 @@ from lib_ml.preprocessor import Preprocessor
 import logging
 import os
 
+import json
+import joblib
+from huggingface_hub import hf_hub_download
+
 # Load environment variables first
 
 app = Flask(__name__)
@@ -17,8 +21,8 @@ app.config.update({
     'ENV': os.getenv('FLASK_ENV', 'production'),
     'DEBUG': os.getenv('FLASK_DEBUG', 'false').lower() == 'true',
     'HOST': os.getenv('HOST', '0.0.0.0'),
-    'PORT': int(os.getenv('PORT', '8080')),
-    'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '8080')}")
+    'PORT': int(os.getenv('PORT', '5000')),
+    'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '5000')}")
 })
 
 # Configure Swagger
@@ -52,11 +56,52 @@ class MockModel:
         pred = self.predict(features)[0]
         return [[0.9, 0.1]] if pred == 0 else [[0.1, 0.9]]
 
+    
+class HFModel:
+    def __init__(self, version="1"):
+        # Download model and metadata from HF Hub
+        model_path = hf_hub_download(
+            repo_id="todor-cmd/sentiment-classifier",
+            filename="sentiment_classifier.joblib",
+            revision=version
+        )
+        
+        metadata_path = hf_hub_download(
+            repo_id="todor-cmd/sentiment-classifier", 
+            filename="metadata.json",
+            revision=version
+        )
+
+        # Load model and metadata
+        classifier = joblib.load(model_path)
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+            
+        # return classifier, metadata
+        self.classifier = classifier
+        self.metadata = metadata
+        logger.info(f"Loaded model from {model_path} and metadata from {metadata_path}")
+        logger.info("Initialized HFModel")
+    
+    def predict(self, features):
+        """Predict sentiment using the classifier"""
+        logger.info(f"Predicting with features: {features}")
+        return self.classifier.predict(features)
+    
+    def predict_proba(self, features):
+        """Predict probabilities using the classifier"""
+        logger.info(f"Predicting probabilities with features: {features}")
+        return self.classifier.predict_proba(features)
+
+
 class SentimentService:
     def __init__(self):
         """Initialize with real preprocessor and mock model"""
-        self.model = MockModel()
+        # self.model = MockModel()
+        self.model = HFModel()
         self.preprocessor = Preprocessor(vectorizer_path=None)
+        self.preprocessor.load_vectorizer("/home/gxy/Desktop/AI_REMLA/team8/model-service/c1_BoW_Sentiment_Model.pkl")
+
         logger.info("Initialized with mock model and real preprocessor")
 
 # Initialize service
@@ -117,12 +162,21 @@ def predict():
             return jsonify({"error": "Missing 'review' in request body"}), 400
 
         review = input_data['review']
+        logger.info(f"Received review: {review}")
         processed_review = service.preprocessor.preprocess(review)
+        logger.info(f"Processed review: {processed_review}")
         
         # Mock feature transformation and prediction
-        features = [[0]]  # Using placeholder features since we're mocking
+        # features = [[0]]  # Using placeholder features since we're mocking
+        # features = service.preprocessor.vectorize_single(processed_review)
+        # features = service.preprocessor.vectorize([processed_review])
+        features = service.preprocessor.vectorize_single(processed_review)
+        # features = ['good food']
+        logger.info(f"Vectorized features: {features}")
+
         prediction = service.model.predict(features)[0]
         confidence = service.model.predict_proba(features)[0][1]
+        logger.info(f"Prediction: {prediction}, Confidence: {confidence}")
 
         return jsonify({
             "sentiment": "positive" if prediction == 1 else "negative",
@@ -185,5 +239,6 @@ if __name__ == '__main__':
     app.run(
         host=app.config['HOST'],
         port=app.config['PORT'],
-        debug=app.config['DEBUG']
+        # debug=app.config['DEBUG']
+        debug=True
     )
