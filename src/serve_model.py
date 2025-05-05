@@ -1,5 +1,5 @@
 """
-Production-ready Flask API with integrated preprocessing and mock model
+Production-ready Flask API with integrated preprocessing and hugging face model
 """
 
 from flask import Flask, jsonify, request
@@ -7,8 +7,9 @@ from flasgger import Swagger
 from lib_ml.preprocessor import Preprocessor
 import logging
 import os
-
-# Load environment variables first
+import json
+import joblib
+from huggingface_hub import hf_hub_download
 
 app = Flask(__name__)
 
@@ -17,8 +18,8 @@ app.config.update({
     'ENV': os.getenv('FLASK_ENV', 'production'),
     'DEBUG': os.getenv('FLASK_DEBUG', 'false').lower() == 'true',
     'HOST': os.getenv('HOST', '0.0.0.0'),
-    'PORT': int(os.getenv('PORT', '8080')),
-    'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '8080')}")
+    'PORT': int(os.getenv('PORT', '5000')),
+    'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '5000')}")
 })
 
 # Configure Swagger
@@ -35,29 +36,50 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+    
+class HFModel:
+    def __init__(self, version="1"):
+        # Download model and metadata from HF Hub
+        model_path = hf_hub_download(
+            repo_id="todor-cmd/sentiment-classifier",
+            filename="sentiment_classifier.joblib",
+            revision=version
+        )
+        
+        metadata_path = hf_hub_download(
+            repo_id="todor-cmd/sentiment-classifier", 
+            filename="metadata.json",
+            revision=version
+        )
 
-class MockModel:
-    """Mock model that returns deterministic test responses"""
-    def __init__(self):
-        logger.warning("Using MOCK model")
-        self.classes_ = [0, 1]  # Mimic sklearn model structure
+        # Load model and metadata
+        classifier = joblib.load(model_path)
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+            
+        # return classifier, metadata
+        self.classifier = classifier
+        self.metadata = metadata
+        logger.info(f"Loaded model from {model_path} and metadata from {metadata_path}")
+        logger.info("Initialized HFModel")
     
     def predict(self, features):
-        """Positive if 'good' in text, otherwise negative"""
-        text = str(features)
-        return [1 if "good" in text.lower() else 0]
+        """Predict sentiment using the classifier"""
+        logger.info(f"Predicting with features: {features}")
+        return self.classifier.predict(features)
     
     def predict_proba(self, features):
-        """Mock confidence scores"""
-        pred = self.predict(features)[0]
-        return [[0.9, 0.1]] if pred == 0 else [[0.1, 0.9]]
+        """Predict probabilities using the classifier"""
+        logger.info(f"Predicting probabilities with features: {features}")
+        return self.classifier.predict_proba(features)
+
 
 class SentimentService:
     def __init__(self):
-        """Initialize with real preprocessor and mock model"""
-        self.model = MockModel()
-        self.preprocessor = Preprocessor(vectorizer_path=None)
-        logger.info("Initialized with mock model and real preprocessor")
+        """Initialize with real preprocessor and hugging face model"""
+        self.model = HFModel()
+        self.preprocessor = Preprocessor(vectorizer_path='/app/c1_BoW_Sentiment_Model.pkl')
+        logger.info("Initialized with HF model and lib-ml preprocessor")
 
 # Initialize service
 service = SentimentService()
@@ -69,9 +91,8 @@ def health_check():
         "status": "healthy",
         "service": "restaurant-sentiment",
         "environment": app.config['ENV'],
-        "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
-        "warning": "Using mock model implementation"
-    })
+        "endpoint": app.config['MODEL_SERVICE_ENDPOINT']
+      })
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -117,19 +138,23 @@ def predict():
             return jsonify({"error": "Missing 'review' in request body"}), 400
 
         review = input_data['review']
-        processed_review = service.preprocessor.preprocess(review)
+        logger.info(f"Received review: {review}")
         
-        # Mock feature transformation and prediction
-        features = [[0]]  # Using placeholder features since we're mocking
+        processed_review = service.preprocessor.preprocess(review)
+        logger.info(f"Processed review: {processed_review}")
+
+        features = service.preprocessor.vectorize_single(processed_review)
+        logger.info(f"Vectorized features: {features}")
+
         prediction = service.model.predict(features)[0]
         confidence = service.model.predict_proba(features)[0][1]
+        logger.info(f"Prediction: {prediction}, Confidence: {confidence}")
 
         return jsonify({
             "sentiment": "positive" if prediction == 1 else "negative",
             "confidence": float(confidence),
             "processed_review": processed_review,
-            "endpoint": app.config['MODEL_SERVICE_ENDPOINT'],
-            "warning": "mock-response"
+            "endpoint": app.config['MODEL_SERVICE_ENDPOINT']
         })
 
     except Exception as e:
