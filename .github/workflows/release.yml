@@ -27,6 +27,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: |
+          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -34,8 +39,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/model-service:latest
-            ghcr.io/${{ github.repository_owner }}/model-service:${{ steps.version.outputs.version }}
+            ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:latest
+            ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.version }}
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
             build-args: |
@@ -47,17 +52,16 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-pre') }}
+        #   prerelease: true
           name: Release ${{ github.ref_name }}
           body: |
-            # Release ${{ github.ref_name }}
-
             ## Docker Images
 
-            - `ghcr.io/${{ github.repository_owner }}/app:${{ steps.version.outputs.version }}`
-            - `ghcr.io/${{ github.repository_owner }}/app:latest`
+            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/app:${{ steps.version.outputs.version }}`
+            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/app:latest`
 
             ## Usage
-            
+
             ```bash
-            docker pull ghcr.io/${{ github.repository_owner }}/app:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/app:${{ steps.version.outputs.version }}
             ```
