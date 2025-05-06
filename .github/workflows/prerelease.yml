@@ -1,8 +1,8 @@
 name: Create Pre-release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [test-pre-release-workflow]  # Temporary trigger
 
 jobs:
   create-prerelease:
