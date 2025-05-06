@@ -23,10 +23,26 @@ app.config.update({
 })
 
 # Configure Swagger
-swagger = Swagger(app, template={
-    'info': {
-        'title': 'Restaurant Sentiment API',
-        'description': 'API for predicting sentiment from restaurant reviews',
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/api/docs"
+}
+
+swagger = Swagger(app, config=swagger_config, template={
+    "info": {
+        "title": "Restaurant Review Sentiment Model API - Team 8",
+        "description": "Machine learning model API for analyzing sentiment in restaurant reviews",
+        "version": os.getenv('VERSION', '0.0.0'),
     }
 })
 
@@ -86,13 +102,33 @@ service = SentimentService()
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    """Service health endpoint"""
+    """
+    Service health endpoint
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: Service health information
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            service:
+              type: string
+            environment:
+              type: string
+            endpoint:
+              type: string
+    """
     return jsonify({
         "status": "healthy",
         "service": "restaurant-sentiment",
         "environment": app.config['ENV'],
         "endpoint": app.config['MODEL_SERVICE_ENDPOINT']
-      })
+    })
 
 @app.route('/predict', methods=['POST'])
 def predict():
