@@ -1,0 +1,46 @@
+name: Create Pre-release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  create-prerelease:
+    # Skip if this is already a pre-release or from operation repo
+    if: |
+      !contains(github.event.release.tag_name, '-pre') &&
+      github.repository != 'remla25-team8/operation'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Calculate next pre-release version
+        id: version
+        run: |
+          # Extract base version (v1.2.3 -> 1.2.3)
+          BASE_VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+          
+          # Split into major.minor.patch
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          
+          # Increment minor version (1.2.3 -> 1.3.0-pre)
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_VERSION="v${MAJOR}.${NEXT_MINOR}.0-pre"
+          
+          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          echo "Created pre-release version: ${NEXT_VERSION}"
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.next_version }}
+          name: "Pre-release ${{ steps.version.outputs.next_version }}"
+          body: |
+            Automated pre-release for testing.
+            
+            **Parent Release**: ${{ github.event.release.tag_name }}
+            
+            This pre-release will become ${{ steps.version.outputs.next_version | replace('-pre', '') }} when stable.
+          prerelease: true
+          draft: false
