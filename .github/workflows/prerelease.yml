@@ -45,15 +45,3 @@ jobs:
             This pre-release will become ${{ steps.version.outputs.stable_version }} when stable.
           prerelease: true
           draft: false
-
-      - name: Update main branch version
-        if: github.ref == 'refs/heads/main'
-        run: |
-          # Update version file (e.g., version.txt or pyproject.toml)
-          echo "${{ steps.version.outputs.next_version }}" > version.txt
-          
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add version.txt
-          git commit -m "Bump version to ${{ steps.version.outputs.next_version }} [skip ci]"
-          git push origin main
