@@ -6,7 +6,6 @@ on:
 
 jobs:
   create-prerelease:
-    # Skip if this is already a pre-release or from operation repo
     if: |
       !contains(github.event.release.tag_name, '-pre') &&
       github.repository != 'remla25-team8/operation'
@@ -24,10 +23,10 @@ jobs:
           # Split into major.minor.patch
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
-          # Increment minor version (1.2.3 -> 1.3.0-pre)
-          NEXT_MINOR=$((MINOR + 1))
-          NEXT_VERSION="v${MAJOR}.${NEXT_MINOR}.0-pre"
-          STABLE_VERSION="v${MAJOR}.${NEXT_MINOR}.0"
+          # Increment PATCH version (1.2.3 -> 1.2.4-pre)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}-pre"
+          STABLE_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
           
           echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
           echo "stable_version=${STABLE_VERSION}" >> $GITHUB_OUTPUT
@@ -46,3 +45,15 @@ jobs:
             This pre-release will become ${{ steps.version.outputs.stable_version }} when stable.
           prerelease: true
           draft: false
+
+      - name: Update main branch version
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Update version file (e.g., version.txt or pyproject.toml)
+          echo "${{ steps.version.outputs.next_version }}" > version.txt
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add version.txt
+          git commit -m "Bump version to ${{ steps.version.outputs.next_version }} [skip ci]"
+          git push origin main
