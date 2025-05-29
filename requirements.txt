@@ -12,4 +12,6 @@ gunicorn==20.1.0
 
 huggingface_hub==0.30.2
 
+lib-ml==1.19.0
+
 git+https://github.com/remla25-team8/lib-ml.git@v0.1.9#egg=lib-ml
