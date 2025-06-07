@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  model-service:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - MODEL_VERSION=1
+      - VECTORIZER_PATH=/app/models/c1_BoW_Sentiment_Model.pkl
+      - FLASK_ENV=production
+    volumes:
+      - ./c1_BoW_Sentiment_Model.pkl:/app/models/c1_BoW_Sentiment_Model.pkl:ro
+      - model-cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  model-cache:
+    driver: local 

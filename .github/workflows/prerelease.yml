@@ -12,8 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Calculate next pre-release version
         id: version
         run: |
@@ -23,14 +27,51 @@ jobs:
           # Split into major.minor.patch
           IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
           
-          # Increment PATCH version (1.2.3 -> 1.2.4-pre)
+          # Increment PATCH version (1.2.3 -> 1.2.4)
           NEXT_PATCH=$((PATCH + 1))
-          NEXT_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}-pre"
+          BASE_PRE_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}-pre"
+          
+          # Get existing pre-release tags for this version
+          EXISTING_TAGS=$(git tag -l "${BASE_PRE_VERSION}-*" | wc -l)
+          ITERATION=$((EXISTING_TAGS + 1))
+          
+          # Create versioned pre-release (e.g., v1.2.4-pre-1)
+          NEXT_VERSION="${BASE_PRE_VERSION}-${ITERATION}"
           STABLE_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
           
           echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
           echo "stable_version=${STABLE_VERSION}" >> $GITHUB_OUTPUT
-          echo "Created pre-release version: ${NEXT_VERSION}"
+          echo "base_pre_version=${BASE_PRE_VERSION}" >> $GITHUB_OUTPUT
+          echo "iteration=${ITERATION}" >> $GITHUB_OUTPUT
+          echo "Created pre-release version: ${NEXT_VERSION} (iteration ${ITERATION})"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+    
+      - name: Convert repository owner to lowercase
+        id: lowercase
+        run: |
+          echo "owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Build and push pre-release image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.next_version }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.next_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create pre-release
         uses: softprops/action-gh-release@v1
@@ -38,10 +79,23 @@ jobs:
           tag_name: ${{ steps.version.outputs.next_version }}
           name: "Pre-release ${{ steps.version.outputs.next_version }}"
           body: |
-            Automated pre-release for testing.
+            Automated pre-release for testing (Iteration ${{ steps.version.outputs.iteration }}).
             
             **Parent Release**: ${{ github.event.release.tag_name }}
+            **Base Pre-release**: ${{ steps.version.outputs.base_pre_version }}
+            **Iteration**: ${{ steps.version.outputs.iteration }}
             
             This pre-release will become ${{ steps.version.outputs.stable_version }} when stable.
+            
+            ## Docker Images (Multi-Architecture)
+            
+            - `ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.next_version }}`
+            - Supports: `linux/amd64`, `linux/arm64`
+            
+            ## Usage
+            
+            ```bash
+            docker pull ghcr.io/${{ steps.lowercase.outputs.owner }}/model-service:${{ steps.version.outputs.next_version }}
+            ```
           prerelease: true
           draft: false

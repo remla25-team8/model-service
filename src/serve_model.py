@@ -54,7 +54,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
     
 class HFModel:
-    def __init__(self, version="1"):
+    def __init__(self, version=None):
+        # Use environment variable for version if not provided
+        version = version or os.getenv('MODEL_VERSION', '1')
+        
         # Download model and metadata from HF Hub
         model_path = hf_hub_download(
             repo_id="todor-cmd/sentiment-classifier",
@@ -76,7 +79,7 @@ class HFModel:
         # return classifier, metadata
         self.classifier = classifier
         self.metadata = metadata
-        logger.info(f"Loaded model from {model_path} and metadata from {metadata_path}")
+        logger.info(f"Loaded model version {version} from {model_path} and metadata from {metadata_path}")
         logger.info("Initialized HFModel")
     
     def predict(self, features):
@@ -94,8 +97,10 @@ class SentimentService:
     def __init__(self):
         """Initialize with real preprocessor and hugging face model"""
         self.model = HFModel()
-        self.preprocessor = Preprocessor(vectorizer_path='/app/c1_BoW_Sentiment_Model.pkl')
-        logger.info("Initialized with HF model and lib-ml preprocessor")
+        # Use environment variable for vectorizer path
+        vectorizer_path = os.getenv('VECTORIZER_PATH', '/app/c1_BoW_Sentiment_Model.pkl')
+        self.preprocessor = Preprocessor(vectorizer_path=vectorizer_path)
+        logger.info(f"Initialized with HF model and lib-ml preprocessor using vectorizer: {vectorizer_path}")
 
 # Initialize service
 service = SentimentService()

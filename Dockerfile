@@ -32,20 +32,14 @@ COPY src/ .
 
 # Environment variables
 ENV FLASK_ENV=production \
-# PORT=8080 \
 PORT=5000 \
 HOST=0.0.0.0 \
-# MODEL_SERVICE_ENDPOINT=http://0.0.0.0:8080 \
 MODEL_SERVICE_ENDPOINT=http://0.0.0.0:5000 \
-MODEL_PATH=/app/model.joblib \
-VECTORIZER_PATH=/app/vectorizer.joblib
+MODEL_VERSION=1 \
+VECTORIZER_PATH=/app/models/c1_BoW_Sentiment_Model.pkl
 
-# Download assets with fallback
-RUN wget ${MODEL_URL:-https://storage.example.com/models/v1.0/model.joblib} -O ${MODEL_PATH} && \
-wget ${VECTORIZER_URL:-https://storage.example.com/models/v1.0/vectorizer.joblib} -O ${VECTORIZER_PATH} || \
-(echo "Warning: Failed to download model files" && touch ${MODEL_PATH} ${VECTORIZER_PATH})
-
-COPY c1_BoW_Sentiment_Model.pkl /app/c1_BoW_Sentiment_Model.pkl
+# Create model directory for volume mounting
+RUN mkdir -p /app/models
 
 EXPOSE ${PORT}
 # CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 4 serve_model:app"]
