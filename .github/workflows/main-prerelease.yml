@@ -5,8 +5,7 @@ on:
     branches:
       - main
       - master
-    tags-ignore:
-      - '**'
+      - a1_excellence
 
 jobs:
   create-main-prerelease:
@@ -16,6 +15,13 @@ jobs:
       packages: write
 
     steps:
+      - name: Workflow triggered notification
+        run: |
+          echo "🚀 Pre-release workflow triggered by push to ${{ github.ref_name }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Commit: ${{ github.sha }}"
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
