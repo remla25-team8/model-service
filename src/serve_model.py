@@ -18,7 +18,7 @@ app.config.update({
     'ENV': os.getenv('FLASK_ENV', 'production'),
     'DEBUG': os.getenv('FLASK_DEBUG', 'false').lower() == 'true',
     'HOST': os.getenv('HOST', '0.0.0.0'),
-    'PORT': int(os.getenv('PORT', '5000')),
+    'PORT': int(os.getenv('PORT', 5000)),
     'MODEL_SERVICE_ENDPOINT': os.getenv('MODEL_SERVICE_ENDPOINT', f"http://0.0.0.0:{os.getenv('PORT', '5000')}")
 })
 
@@ -42,7 +42,7 @@ swagger = Swagger(app, config=swagger_config, template={
     "info": {
         "title": "Restaurant Review Sentiment Model API - Team 8",
         "description": "Machine learning model API for analyzing sentiment in restaurant reviews",
-        "version": os.getenv('VERSION', '0.0.0'),
+        "version": os.getenv('VERSION', '1'),
     }
 })
 
@@ -76,7 +76,6 @@ class HFModel:
         with open(metadata_path) as f:
             metadata = json.load(f)
             
-        # return classifier, metadata
         self.classifier = classifier
         self.metadata = metadata
         logger.info(f"Loaded model version {version} from {model_path} and metadata from {metadata_path}")
@@ -144,16 +143,13 @@ def predict():
         - application/json
     parameters:
         - name: input_data
-          in: body
-          description: review to be classified.
-          required: True
-          schema:
-            type: object
-            required: review
-            properties:
-                review:
-                    type: string
-                    example: "The food was delicious!"
+          in: formData
+          description: JSON object containing review to be classified
+          required: true
+        - name: x-user-id
+          in: header
+          type: string
+          description: User ID for session consistency
     responses:
         200:
             description: "The result of the classification"
@@ -174,9 +170,12 @@ def predict():
             description: "Invalid input"
     """
     try:
+        user_id = request.headers.get('x-user-id', 'unknown')
+        logger.debug(f"Received request with x-user-id: {user_id}")
+        
         input_data = request.get_json()
         if not input_data or 'review' not in input_data:
-            return jsonify({"error": "Missing 'review' in request body"}), 400
+            return jsonify({"error": "Missing 'review' field in request body"}), 400
 
         review = input_data['review']
         logger.info(f"Received review: {review}")
@@ -184,8 +183,8 @@ def predict():
         processed_review = service.preprocessor.preprocess(review)
         logger.info(f"Processed review: {processed_review}")
 
-        features = service.preprocessor.vectorize_single(processed_review)
-        logger.info(f"Vectorized features: {features}")
+        features = [service.preprocessor.vectorize_single(processed_review)]
+        logger.debug(f"Vectorized features: {features}")
 
         prediction = service.model.predict(features)[0]
         confidence = service.model.predict_proba(features)[0][1]
@@ -200,7 +199,7 @@ def predict():
 
     except Exception as e:
         logger.error(f"Prediction failed: {str(e)}")
-        return jsonify({"error": "Prediction service unavailable"}), 500
+        return jsonify({"error": "Prediction failed"}), 500
 
 @app.route('/dumbpredict', methods=['POST'])
 def dumbpredict():
@@ -211,16 +210,9 @@ def dumbpredict():
         - application/json
     parameters:
         - name: input_data
-          in: body
-          description: review to be classified.
-          required: True
-          schema:
-            type: object
-            required: review
-            properties:
-                review:
-                    type: string
-                    example: "The food was delicious!"
+          in: formData
+          description: JSON object containing review to be classified
+          required: true
     responses:
         200:
             description: "Simple mock response"
@@ -237,7 +229,7 @@ def dumbpredict():
                         type: string
     """
     input_data = request.get_json()
-    review = input_data.get('review', "") if input_data else ""
+    review = input_data.get('review', '') if input_data else ''
 
     return jsonify({
         "result": "Positive",
